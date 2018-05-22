@@ -153,7 +153,7 @@ writequeuef(struct qitem *it)
 static struct qitem *
 readqueuef(struct queue *queue, char *queuefn)
 {
-	char line[1000];
+	char *line = (char*) malloc(MAX_LINE_SIZE);
 	struct queue itmqueue;
 	FILE *queuef = NULL;
 	char *s;
@@ -168,7 +168,7 @@ readqueuef(struct queue *queue, char *queuefn)
 		goto out;
 
 	while (!feof(queuef)) {
-		if (fgets(line, sizeof(line), queuef) == NULL || line[0] == 0)
+		if (fgets(line, MAX_LINE_SIZE, queuef) == NULL || line[0] == 0)
 			break;
 		line[strlen(line) - 1] = 0;	/* chop newline */
 
@@ -225,6 +225,7 @@ out:
 	if (queuef != NULL)
 		fclose(queuef);
 
+	free(line);
 	return (it);
 }
 

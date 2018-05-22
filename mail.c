@@ -45,7 +45,7 @@ void
 bounce(struct qitem *it, const char *reason)
 {
 	struct queue bounceq;
-	char line[1000];
+	char *line;
 	size_t pos;
 	int error;
 
@@ -54,6 +54,8 @@ bounce(struct qitem *it, const char *reason)
 		syslog(LOG_INFO, "can not bounce a bounce message, discarding");
 		exit(EX_SOFTWARE);
 	}
+
+	line = (char *) malloc(MAX_LINE_SIZE);
 
 	bzero(&bounceq, sizeof(bounceq));
 	LIST_INIT(&bounceq.queue);
@@ -106,13 +108,13 @@ bounce(struct qitem *it, const char *reason)
 	if (fseek(it->mailf, 0, SEEK_SET) != 0)
 		goto fail;
 	if (config.features & FULLBOUNCE) {
-		while ((pos = fread(line, 1, sizeof(line), it->mailf)) > 0) {
+		while ((pos = fread(line, 1, MAX_LINE_SIZE, it->mailf)) > 0) {
 			if (fwrite(line, 1, pos, bounceq.mailf) != pos)
 				goto fail;
 		}
 	} else {
 		while (!feof(it->mailf)) {
-			if (fgets(line, sizeof(line), it->mailf) == NULL)
+			if (fgets(line, MAX_LINE_SIZE, it->mailf) == NULL)
 				break;
 			if (line[0] == '\n')
 				break;
@@ -133,6 +135,7 @@ bounce(struct qitem *it, const char *reason)
 fail:
 	syslog(LOG_CRIT, "error creating bounce: %m");
 	delqueue(it);
+	free(line);
 	exit(EX_IOERR);
 }
 
@@ -345,7 +348,7 @@ int
 readmail(struct queue *queue, int nodot, int recp_from_header)
 {
 	struct parse_state parse_state;
-	char line[1000];	/* by RFC2822 */
+	char *line;	/* by RFC2822 */
 	size_t linelen;
 	size_t error;
 	int had_headers = 0;
@@ -371,8 +374,10 @@ readmail(struct queue *queue, int nodot, int recp_from_header)
 	if ((ssize_t)error < 0)
 		return (-1);
 
+	line = (char*) malloc(MAX_LINE_SIZE);
+
 	while (!feof(stdin)) {
-		if (fgets(line, sizeof(line) - 1, stdin) == NULL)
+		if (fgets(line, MAX_LINE_SIZE, stdin) == NULL)
 			break;
 		if (had_last_line)
 			errlogx(EX_DATAERR, "bad mail input format:"
@@ -430,31 +435,36 @@ readmail(struct queue *queue, int nodot, int recp_from_header)
 			while (!had_date || !had_messagid || !had_from) {
 				if (!had_date) {
 					had_date = 1;
-					snprintf(line, sizeof(line), "Date: %s\n", rfc822date());
+					snprintf(line, MAX_LINE_SIZE, "Date: %s\n", rfc822date());
 				} else if (!had_messagid) {
 					/* XXX msgid, assign earlier and log? */
 					had_messagid = 1;
-					snprintf(line, sizeof(line), "Message-Id: <%"PRIxMAX".%s.%"PRIxMAX"@%s>\n",
+					snprintf(line, MAX_LINE_SIZE, "Message-Id: <%"PRIxMAX".%s.%"PRIxMAX"@%s>\n",
 						 (uintmax_t)time(NULL),
 						 queue->id,
 						 (uintmax_t)random(),
 						 hostname());
 				} else if (!had_from) {
 					had_from = 1;
-					snprintf(line, sizeof(line), "From: <%s>\n", queue->sender);
+					snprintf(line, MAX_LINE_SIZE, "From: <%s>\n", queue->sender);
 				}
-				if (fwrite(line, strlen(line), 1, queue->mailf) != 1)
+				if (fwrite(line, strlen(line), 1, queue->mailf) != 1) {
+					free(line);
 					return (-1);
+				}
 			}
 			strcpy(line, "\n");
 		}
 		if (!nodot && linelen == 2 && line[0] == '.')
 			break;
 		if (!nocopy) {
-			if (fwrite(line, strlen(line), 1, queue->mailf) != 1)
+			if (fwrite(line, strlen(line), 1, queue->mailf) != 1) {
+				free(line);
 				return (-1);
+			}
 		}
 	}
 
+	free(line);
 	return (0);
 }

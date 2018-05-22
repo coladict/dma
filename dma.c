@@ -190,7 +190,7 @@ add_recp(struct queue *queue, const char *str, int expand)
 
 	it->sender = queue->sender;
 	host = strrchr(it->addr, '@');
-	if (host != NULL &&
+	if (host != NULL && (config.features & NULLCLIENT) == 0 &&
 	    (strcmp(host + 1, hostname()) == 0 ||
 	     strcmp(host + 1, "localhost") == 0)) {
 		*host = 0;

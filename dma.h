@@ -49,6 +49,7 @@
 #define VERSION	"DragonFly Mail Agent " DMA_VERSION
 
 #define BUF_SIZE	2048
+#define MAX_LINE_SIZE 65536
 #define ERRMSG_SIZE	1024
 #define USERNAME_SIZE	50
 #define EHLO_RESPONSE_SIZE BUF_SIZE

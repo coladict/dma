@@ -126,7 +126,7 @@ int
 deliver_local(struct qitem *it)
 {
 	char fn[PATH_MAX+1];
-	char line[1000];
+	char *line = (char*) malloc(MAX_LINE_SIZE);
 	const char *sender;
 	const char *newline = "\n";
 	size_t linelen;
@@ -163,6 +163,7 @@ retry:
 			 */
 			if (tries > 0 || create_mbox(it->addr) != 0) {
 				syslog(LOG_ERR, "local delivery deferred: can not create `%s'", fn);
+				free(line);
 				return (1);
 			}
 			++tries;
@@ -176,6 +177,7 @@ retry:
 			syslog(LOG_NOTICE, "local delivery deferred: can not open `%s': %m", fn);
 			break;
 		}
+		free(line);
 		return (1);
 	}
 	do_timeout(0, 0);
@@ -196,8 +198,8 @@ retry:
 		goto out;
 	}
 
-	error = snprintf(line, sizeof(line), "%sFrom %s %s", newline, sender, ctime(&now));
-	if (error < 0 || (size_t)error >= sizeof(line)) {
+	error = snprintf(line, MAX_LINE_SIZE, "%sFrom %s %s", newline, sender, ctime(&now));
+	if (error < 0 || (size_t)error >= MAX_LINE_SIZE) {
 		syslog(LOG_NOTICE, "local delivery deferred: can not write header: %m");
 		goto out;
 	}
@@ -205,7 +207,7 @@ retry:
 		goto wrerror;
 
 	while (!feof(it->mailf)) {
-		if (fgets(line, sizeof(line), it->mailf) == NULL)
+		if (fgets(line, MAX_LINE_SIZE, it->mailf) == NULL)
 			break;
 		linelen = strlen(line);
 		if (linelen == 0 || line[linelen - 1] != '\n') {
@@ -240,6 +242,7 @@ retry:
 			goto wrerror;
 	}
 	close(mbox);
+	free(line);
 	return (0);
 
 wrerror:
@@ -250,5 +253,6 @@ chop:
 		syslog(LOG_WARNING, "error recovering mbox `%s': %m", fn);
 out:
 	close(mbox);
+	free(line);
 	return (error);
 }

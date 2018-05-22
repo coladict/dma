@@ -464,7 +464,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 {
 	struct authuser *a;
 	struct smtp_features features;
-	char line[1000];
+	char *line;
 	size_t linelen;
 	int fd, error = 0, do_auth = 0, res = 0;
 
@@ -474,8 +474,11 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 	}
 
 	fd = open_connection(host);
-	if (fd < 0)
+	if (fd < 0) {
 		return (1);
+	}
+
+	line = (char *) malloc(MAX_LINE_SIZE);
 
 #define READ_REMOTE_CHECK(c, exp)	\
 	res = read_remote(fd, 0, NULL); \
@@ -517,6 +520,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 	if (perform_server_greeting(fd, &features) != 0) {
 		syslog(LOG_ERR, "Could not perform server greeting at %s [%s]: %s",
 			host->host, host->addr, neterr);
+		free(line);
 		return -1;
 	}
 
@@ -564,7 +568,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 
 	error = 0;
 	while (!feof(it->mailf)) {
-		if (fgets(line, sizeof(line), it->mailf) == NULL)
+		if (fgets(line, MAX_LINE_SIZE, it->mailf) == NULL)
 			break;
 		linelen = strlen(line);
 		if (linelen == 0 || line[linelen - 1] != '\n') {
@@ -600,6 +604,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 out:
 
 	close_connection(fd);
+	free(line);
 	return (error);
 }
 
